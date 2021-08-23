@@ -1,7 +1,7 @@
 {
   "name": "ally-auth0",
-  "version": "1.0.1",
-  "description": "An Auth0 driver for Adonis's Ally authentication module",
+  "version": "0.1.0",
+  "description": "An Auth0 driver for AdonisJS's Ally authentication module",
   "main": "build/providers/index.js",
   "files": [
     "build/src",
@@ -22,22 +22,31 @@
   },
   "keywords": [
     "adonisjs",
-    "adonis-ally"
+    "adonis-ally",
+    "auth0"
   ],
-  "author": "",
+  "homepage": "https://github.com/skrenek/ally-auth0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skrenek/ally-auth0.git"
+  },
+  "author": {
+    "name": "Steve Krenek",
+    "url": "https://github.com/skrenek"
+  },
   "license": "MIT",
   "devDependencies": {
-    "@adonisjs/ally": "^4.0.0",
-    "@adonisjs/core": "^5.1.8",
-    "@types/node": "^15.12.2",
+    "@adonisjs/ally": "^4.1.0",
+    "@adonisjs/core": "^5.1.11",
+    "@types/node": "^15.14.9",
     "copyfiles": "^2.4.1",
     "del-cli": "^3.0.1",
-    "eslint": "^7.28.0",
+    "eslint": "^7.32.0",
     "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-adonis": "^1.3.2",
-    "eslint-plugin-prettier": "^3.4.0",
-    "prettier": "^2.3.1",
-    "typescript": "^4.3.2"
+    "eslint-plugin-adonis": "^1.3.3",
+    "eslint-plugin-prettier": "^3.4.1",
+    "prettier": "^2.3.2",
+    "typescript": "^4.3.5"
   },
   "peerDependencies": {
     "@adonisjs/ally": "^4.0.0",
