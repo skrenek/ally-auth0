@@ -1,18 +1,12 @@
 /*
 |--------------------------------------------------------------------------
-| Ally Oauth driver
+| Auth0 Ally Oauth driver
 |--------------------------------------------------------------------------
-|
-| This is a dummy implementation of the Oauth driver. Make sure you
-|
-| - Got through every line of code
-| - Read every comment
-|
 */
 
-import type { AllyUserContract } from '@ioc:Adonis/Addons/Ally'
+import type { AllyUserContract, ApiRequestContract } from '@ioc:Adonis/Addons/Ally'
 import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
-import { Oauth2Driver, ApiRequest } from '@adonisjs/ally/build/standalone'
+import { Oauth2Driver, ApiRequest, RedirectRequest } from '@adonisjs/ally/build/standalone'
 
 /**
  * Define the access token object properties in this type. It
@@ -20,12 +14,12 @@ import { Oauth2Driver, ApiRequest } from '@adonisjs/ally/build/standalone'
  * more properties.
  *
  * ------------------------------------------------
- * Change "YourDriver" to something more relevant
- * ------------------------------------------------
  */
-export type YourDriverAccessToken = {
+export type Auth0AccessToken = {
   token: string
   type: 'bearer'
+  id_token?: string
+  scope?: string
 }
 
 /**
@@ -33,23 +27,22 @@ export type YourDriverAccessToken = {
  * https://github.com/adonisjs/ally/blob/develop/adonis-typings/ally.ts#L236-L268
  *
  * ------------------------------------------------
- * Change "YourDriver" to something more relevant
- * ------------------------------------------------
  */
-export type YourDriverScopes = string
+export type Auth0Scopes = string
 
 /**
  * Define the configuration options accepted by your driver. It must have the following
  * properties and you are free add more.
  *
  * ------------------------------------------------
- * Change "YourDriver" to something more relevant
- * ------------------------------------------------
  */
-export type YourDriverConfig = {
-  driver: 'YourDriverName'
+export type Auth0Config = {
+  driver: 'auth0'
   clientId: string
   clientSecret: string
+  domain: string
+  audience?: string
+  scopes?: string[]
   callbackUrl: string
   authorizeUrl?: string
   accessTokenUrl?: string
@@ -60,31 +53,30 @@ export type YourDriverConfig = {
  * Driver implementation. It is mostly configuration driven except the user calls
  *
  * ------------------------------------------------
- * Change "YourDriver" to something more relevant
- * ------------------------------------------------
  */
-export class YourDriver extends Oauth2Driver<YourDriverAccessToken, YourDriverScopes> {
+export class Auth0Driver extends Oauth2Driver<Auth0AccessToken, Auth0Scopes> {
   /**
    * The URL for the redirect request. The user will be redirected on this page
    * to authorize the request.
    *
    * Do not define query strings in this URL.
    */
-  protected authorizeUrl = ''
+  protected authorizeUrl = this.config.authorizeUrl || `https://${this.config.domain}/authorize`
 
   /**
    * The URL to hit to exchange the authorization code for the access token
    *
    * Do not define query strings in this URL.
    */
-  protected accessTokenUrl = ''
+  protected accessTokenUrl =
+    this.config.accessTokenUrl || `https://${this.config.domain}/oauth/token`
 
   /**
    * The URL to hit to get the user details
    *
    * Do not define query strings in this URL.
    */
-  protected userInfoUrl = ''
+  protected userInfoUrl = this.config.userInfoUrl || `https://${this.config.domain}/userinfo`
 
   /**
    * The param name for the authorization code. Read the documentation of your oauth
@@ -105,7 +97,7 @@ export class YourDriver extends Oauth2Driver<YourDriverAccessToken, YourDriverSc
    * approach is to prefix the oauth provider name to `oauth_state` value. For example:
    * For example: "facebook_oauth_state"
    */
-  protected stateCookieName = 'YourDriver_oauth_state'
+  protected stateCookieName = 'auth0_oauth_state'
 
   /**
    * Parameter name to be used for sending and receiving the state from.
@@ -125,7 +117,7 @@ export class YourDriver extends Oauth2Driver<YourDriverAccessToken, YourDriverSc
    */
   protected scopesSeparator = ' '
 
-  constructor(ctx: HttpContextContract, public config: YourDriverConfig) {
+  constructor(ctx: HttpContextContract, public config: Auth0Config) {
     super(ctx, config)
 
     /**
@@ -142,7 +134,15 @@ export class YourDriver extends Oauth2Driver<YourDriverAccessToken, YourDriverSc
    * is made by the base implementation of "Oauth2" driver and this is a
    * hook to pre-configure the request.
    */
-  // protected configureRedirectRequest(request: RedirectRequest<YourDriverScopes>) {}
+  protected configureRedirectRequest(request: RedirectRequest<Auth0Scopes>) {
+    request.param('response_type', 'code')
+    if (this.config.scopes?.length) {
+      request.scopes(this.config.scopes)
+    }
+    if (this.config.audience?.length) {
+      request.param('audience', this.config.audience)
+    }
+  }
 
   /**
    * Optionally configure the access token request. The actual request is made by
@@ -154,13 +154,15 @@ export class YourDriver extends Oauth2Driver<YourDriverAccessToken, YourDriverSc
   /**
    * Update the implementation to tell if the error received during redirect
    * means "ACCESS DENIED".
+   *
+   * For Auth0, see https://auth0.com/docs/api/authentication?http#standard-error-responses
    */
   public accessDenied() {
-    return this.ctx.request.input('error') === 'user_denied'
+    return this.ctx.request.input('error') === 'access_denied'
   }
 
   /**
-   * Get the user details by query the provider API. This method must return
+   * Get the user details by querying the provider API. This method must return
    * the access token and the user details both. Checkout the google
    * implementation for same.
    *
@@ -168,39 +170,55 @@ export class YourDriver extends Oauth2Driver<YourDriverAccessToken, YourDriverSc
    */
   public async user(
     callback?: (request: ApiRequest) => void
-  ): Promise<AllyUserContract<YourDriverAccessToken>> {
-    const accessToken = await this.accessToken()
-    const request = this.httpClient(this.config.userInfoUrl || this.userInfoUrl)
+  ): Promise<AllyUserContract<Auth0AccessToken>> {
+    const token = await this.accessToken(callback)
+    const user = await this.getUserInfo(token.token, callback)
 
-    /**
-     * Allow end user to configure the request. This should be called after your custom
-     * configuration, so that the user can override them (if required)
-     */
-    if (typeof callback === 'function') {
-      callback(request)
+    return {
+      ...user,
+      token: token,
     }
-
-    /**
-     * Write your implementation details here
-     */
   }
 
   public async userFromToken(
     accessToken: string,
     callback?: (request: ApiRequest) => void
   ): Promise<AllyUserContract<{ token: string; type: 'bearer' }>> {
-    const request = this.httpClient(this.config.userInfoUrl || this.userInfoUrl)
+    const user = await this.getUserInfo(accessToken, callback)
 
-    /**
-     * Allow end user to configure the request. This should be called after your custom
-     * configuration, so that the user can override them (if required)
-     */
+    return {
+      ...user,
+      token: { token: accessToken, type: 'bearer' as const },
+    }
+  }
+
+  /**
+   * Returns the HTTP request with the authorization header set
+   */
+  protected getAuthenticatedRequest(url: string, token: string) {
+    const request = this.httpClient(url)
+    request.header('Authorization', `Bearer ${token}`)
+    request.header('Accept', 'application/json')
+    request.parseAs('json')
+    return request
+  }
+
+  protected async getUserInfo(token: string, callback?: (request: ApiRequestContract) => void) {
+    const request = this.getAuthenticatedRequest(this.config.userInfoUrl || this.userInfoUrl, token)
     if (typeof callback === 'function') {
       callback(request)
     }
 
-    /**
-     * Write your implementation details here
-     */
+    const body = await request.get()
+
+    return {
+      id: body.sub,
+      nickName: body.nickname,
+      name: body.name,
+      email: body.email,
+      avatarUrl: body.picture,
+      emailVerificationState: body.email_verified ? ('verified' as const) : ('unverified' as const),
+      original: body,
+    }
   }
 }
