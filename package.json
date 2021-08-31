@@ -1,6 +1,6 @@
 {
   "name": "ally-auth0",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "An Auth0 driver for AdonisJS's Ally authentication module",
   "main": "build/providers/index.js",
   "files": [

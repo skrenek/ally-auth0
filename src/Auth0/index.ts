@@ -203,7 +203,10 @@ export class Auth0Driver extends Oauth2Driver<Auth0AccessToken, Auth0Scopes> {
     return request
   }
 
-  protected async getUserInfo(token: string, callback?: (request: ApiRequestContract) => void) {
+  protected async getUserInfo(
+    token: string,
+    callback?: (request: ApiRequestContract) => void
+  ): Promise<any> {
     const request = this.getAuthenticatedRequest(this.config.userInfoUrl || this.userInfoUrl, token)
     if (typeof callback === 'function') {
       callback(request)
